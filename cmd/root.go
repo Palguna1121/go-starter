@@ -1,13 +1,15 @@
-// cmd/root.go
 package cmd
 
 import (
+	"embed"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+var templateFS embed.FS
 
 func Execute() {
 	args := os.Args
@@ -18,6 +20,17 @@ func Execute() {
 	}
 
 	projectName := args[2]
+
+	if projectName == "" {
+		fmt.Println("Error: Project name cannot be empty")
+		return
+	}
+
+	if _, err := os.Stat(projectName); !os.IsNotExist(err) {
+		fmt.Printf("Error: Directory '%s' already exists\n", projectName)
+		return
+	}
+
 	err := copyTemplate(projectName)
 	if err != nil {
 		fmt.Println("Error creating project:", err)
@@ -28,36 +41,35 @@ func Execute() {
 }
 
 func copyTemplate(projectName string) error {
-	src := filepath.Join(".", "template")
-	dst := filepath.Join(".", projectName)
+	templateDir := "template"
 
-	return copyDir(src, dst)
-}
-
-func copyDir(src string, dst string) error {
-	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
+	return fs.WalkDir(templateFS, templateDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		relPath, err := filepath.Rel(src, path)
+		if path == templateDir {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(templateDir, path)
 		if err != nil {
 			return err
 		}
 
-		targetPath := filepath.Join(dst, relPath)
+		targetPath := filepath.Join(projectName, relPath)
 
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, os.ModePerm)
+		if d.IsDir() {
+			return os.MkdirAll(targetPath, 0755)
 		}
 
-		input, err := os.ReadFile(path)
+		content, err := templateFS.ReadFile(path)
 		if err != nil {
 			return err
 		}
 
-		content := strings.ReplaceAll(string(input), "go-starter-template", filepath.Base(dst))
+		modifiedContent := strings.ReplaceAll(string(content), "go-starter-template", projectName)
 
-		return os.WriteFile(targetPath, []byte(content), info.Mode())
+		return os.WriteFile(targetPath, []byte(modifiedContent), 0644)
 	})
 }

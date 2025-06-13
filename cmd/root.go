@@ -1,75 +1,115 @@
 package cmd
 
 import (
-	"embed"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
-var templateFS embed.FS
-
-func Execute() {
-	args := os.Args
-
-	if len(args) < 3 || args[1] != "new" {
-		fmt.Println("Usage: go-starter new <project-name>")
-		return
-	}
-
-	projectName := args[2]
-
-	if projectName == "" {
-		fmt.Println("Error: Project name cannot be empty")
-		return
-	}
-
-	if _, err := os.Stat(projectName); !os.IsNotExist(err) {
-		fmt.Printf("Error: Directory '%s' already exists\n", projectName)
-		return
-	}
-
-	err := copyTemplate(projectName)
-	if err != nil {
-		fmt.Println("Error creating project:", err)
-		return
-	}
-
-	fmt.Printf("✅ Project '%s' created successfully!\n", projectName)
+var rootCmd = &cobra.Command{
+	Use:   "go-starter",
+	Short: "Go Starter CLI",
 }
 
-func copyTemplate(projectName string) error {
-	templateDir := "template"
+var newCmd = &cobra.Command{
+	Use:   "new [project name]",
+	Short: "Create a new Go starter project",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		projectName := args[0]
 
-	return fs.WalkDir(templateFS, templateDir, func(path string, d fs.DirEntry, err error) error {
+		templatePath, err := getTemplatePath()
 		if err != nil {
 			return err
 		}
 
-		if path == templateDir {
-			return nil
-		}
-
-		relPath, err := filepath.Rel(templateDir, path)
+		outputPath, err := filepath.Abs(projectName)
 		if err != nil {
 			return err
 		}
 
-		targetPath := filepath.Join(projectName, relPath)
+		fmt.Printf("Creating new project '%s'...\n", projectName)
 
-		if d.IsDir() {
-			return os.MkdirAll(targetPath, 0755)
-		}
-
-		content, err := templateFS.ReadFile(path)
+		// Ganti "response-std" jadi nama baru
+		err = copyDir(templatePath, outputPath, map[string]string{
+			"response-std":    projectName,
+			"__MODULE_NAME__": projectName,
+		})
 		if err != nil {
 			return err
 		}
 
-		modifiedContent := strings.ReplaceAll(string(content), "go-starter-template", projectName)
+		fmt.Println("✅ Project created successfully at", outputPath)
+		return nil
+	},
+}
 
-		return os.WriteFile(targetPath, []byte(modifiedContent), 0644)
+func Execute() {
+	rootCmd.AddCommand(newCmd)
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println("❌ Error:", err)
+		os.Exit(1)
+	}
+}
+
+func getTemplatePath() (string, error) {
+	// Coba cari berdasarkan relative path dari source
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	localTemplate := filepath.Join(cwd, "template")
+	if _, err := os.Stat(localTemplate); err == nil {
+		return localTemplate, nil
+	}
+
+	// Kalau tidak ditemukan, fallback ke path relatif dari executable
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	execDir := filepath.Dir(execPath)
+	parentDir := filepath.Dir(execDir)
+	embeddedTemplate := filepath.Join(parentDir, "template")
+
+	if _, err := os.Stat(embeddedTemplate); err == nil {
+		return embeddedTemplate, nil
+	}
+
+	return "", fmt.Errorf("template folder not found")
+}
+
+func copyDir(src string, dst string, replacements map[string]string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+
+		targetPath := filepath.Join(dst, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, os.ModePerm)
+		}
+
+		input, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		content := string(input)
+		for old, new := range replacements {
+			content = strings.ReplaceAll(content, old, new)
+		}
+
+		return os.WriteFile(targetPath, []byte(content), info.Mode())
 	})
 }

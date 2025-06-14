@@ -13,39 +13,62 @@ A production-ready Go API starter template with standardized response structure,
 - **📝 Comprehensive Logging** - Configurable logging levels
 - **⚙️ Environment Configuration** - Flexible configuration management
 - **🛡️ Middleware Support** - Authentication and API middleware
+- **🛠️ CLI Tool** - Easy project generation with `go-starter` command
 
-## 🛠️ Installation
+## 🛠️ Installation & Setup
 
-### 1. Clone the Project
+### 1. Install Go Starter CLI
+
+First, install the `go-starter` CLI tool:
+
 ```bash
-git clone <repository-url>
-cd <project-directory>
+go install github.com/Palguna1121/go-starter@latest
 ```
 
-### 2. Initialize Go Module
+> **Note**: Make sure your `$GOPATH/bin` is in your system PATH to use the `go-starter` command globally.
+
+### 2. Create New Project
+
+Generate a new project using the CLI:
+
 ```bash
-go mod init <nama_projek>
+go-starter new my-awesome-api
+cd my-awesome-api
+```
+
+This will create a new directory with all the template files and automatically replace template placeholders with your project name.
+
+### 3. Initialize Dependencies
+
+```bash
 go mod tidy
 ```
 
-### 3. Update Project Name
-Replace all occurrences of `response-std` with your `<nama_projek>` throughout the codebase.
-
 ### 4. Environment Setup
+
+Copy the example environment file and configure it:
+
 ```bash
 cp .env.example .env
 ```
 
 Edit `.env` file with your configuration:
+
 ```env
+# Application Configuration
 APP_PORT=5220
+APP_NAME=my-awesome-api
+
+# Database Configuration
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=your_username
 DB_PASSWORD=your_password
 DB_NAME=your_database_name
 
-JWT_SECRET=your_jwt_secret_key
+# JWT Configuration
+JWT_SECRET=your_super_secret_jwt_key_here
+JWT_EXPIRES_IN=24h
 
 # API Configuration
 API_VERSION=v1
@@ -55,11 +78,11 @@ API_BASE_URL=http://localhost:5220/api/v1
 EXTERNAL_API_BASE_URL=https://api.example.com
 EXTERNAL_API_KEY=your_api_key_here
 
-# Logging & Performance
-REQUEST_TIMEOUT=5S
+# Performance & Logging
+REQUEST_TIMEOUT=30s
 MAX_RETRIES=3
-RETRY_DELAY=200MS
-ENABLE_LOGGING=TRUE
+RETRY_DELAY=200ms
+ENABLE_LOGGING=true
 LOG_LEVEL=debug
 ENVIRONMENT=development
 ```
@@ -67,27 +90,47 @@ ENVIRONMENT=development
 ## 📦 Prerequisites
 
 ### Install golang-migrate
-Before running the application, you need to install `golang-migrate`:
 
-1. Download the latest stable version from [golang-migrate releases](https://github.com/golang-migrate/migrate/releases)
-2. Place `migrate.exe` in your `GOPATH/bin/` directory
+Before running the application, install `golang-migrate` for database migrations:
+
+**Option 1: Using Go**
+```bash
+go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+```
+
+**Option 2: Download Binary (recommended on windows)**
+1. Download from [golang-migrate releases](https://github.com/golang-migrate/migrate/releases)
+2. Place `migrate` binary in your `$GOPATH/bin/`
 3. Verify installation:
 ```bash
 migrate -version
 ```
-If you see a version number, you're ready to proceed!
 
 ## 🏃‍♂️ Running the Application
 
 ### 1. Run Database Migrations
+
 ```bash
+# Using Makefile (recommended)
 make migrate-up
-# or
+
+# Or using Go command directly
 go run cmd/migrate/migrate.go up
 ```
 
-### 2. Start the Server
+### 2. Seed Initial Data (Optional)
+
 ```bash
+go run cmd/seed/seed.go
+```
+
+### 3. Start the Development Server
+
+```bash
+# Using Makefile
+make run
+
+# Or using Go command
 go run main.go
 ```
 
@@ -96,222 +139,487 @@ Your API will be available at `http://localhost:5220/api/v1`
 ## 🏗️ Project Structure
 
 ```
+my-awesome-api/
 ├── cmd/                    # Command line utilities
-├── config/                 # Configuration files
+│   ├── migrate/           # Database migration commands
+│   └── seed/              # Database seeding commands
+├── config/                 # Configuration management
+│   ├── config.go          # Main configuration
+│   ├── database.go        # Database configuration
+│   └── external_api.go    # External API configuration
 ├── core/                   # Core application logic
 │   ├── handlers/          # HTTP handlers
+│   ├── helper/            # Utility functions
 │   ├── middleware/        # Custom middleware
-│   ├── models/           # Data models
-│   ├── response/         # Response utilities
-│   ├── router/           # Route registry
-│   └── services/         # Business logic services
-├── v1/                    # API version 1
-│   ├── controllers/      # HTTP controllers
-│   ├── database/         # Migrations and seeds
-│   ├── middleware/       # Version-specific middleware
-│   └── routes/           # API routes
-└── v2/                    # API version 2 (future)
+│   ├── models/            # Data models & structures
+│   ├── response/          # Response utilities
+│   ├── router/            # Route registry
+│   └── services/          # Business logic services
+├── v1/                     # API version 1
+│   ├── controllers/       # HTTP controllers
+│   ├── database/          # Migrations and seeds
+│   │   ├── migrations/    # SQL migration files
+│   │   └── seeds/         # Seed data files
+│   ├── middleware/        # Version-specific middleware
+│   ├── models/            # Version-specific models
+│   └── routes/            # API route definitions
+├── v2/                     # API version 2 (for future use)
+├── logs/                   # Application logs
+├── .env.example           # Environment template
+├── .gitignore            # Git ignore rules
+├── go.mod                # Go module definition
+├── go.sum                # Go dependencies
+├── main.go               # Application entry point
+├── Makefile              # Build and development commands
+└── README.md             # This file
 ```
 
 ## 📚 Usage Examples
 
 ### 🔧 Standardized Response Structure
 
-The template provides a consistent response format:
+All API responses follow a consistent format:
 
 ```json
 {
   "status": "success|error",
   "code": 200,
-  "message": "Operation successful",
-  "data": {...}
+  "message": "Operation completed successfully",
+  "data": {
+    // Response data here
+  }
 }
 ```
 
-### 🎯 Response Methods Available
+### 🎯 Available Response Methods
 
 ```go
 // Success Responses
-response.Success(c, "Operation successful", data)      // 200
-response.Created(c, "Resource created", data)          // 201
-response.Accepted(c, "Request accepted", data)         // 202
-response.NoContent(c)                                  // 204
+response.Success(c, "Operation successful", data)      // 200 OK
+response.Created(c, "Resource created", data)          // 201 Created
+response.Accepted(c, "Request accepted", data)         // 202 Accepted
+response.NoContent(c)                                  // 204 No Content
 
 // Error Responses
-response.Error(c, 500, "Internal server error")       // Custom error
-response.BadRequest(c, "Invalid input")                // 400
-response.Unauthorized(c, "Access denied")              // 401
-response.Forbidden(c, "Permission denied")             // 403
-response.NotFound(c, "Resource not found")             // 404
+response.Error(c, 500, "Internal server error")       // Custom error code
+response.BadRequest(c, "Invalid input provided")      // 400 Bad Request
+response.Unauthorized(c, "Authentication required")   // 401 Unauthorized
+response.Forbidden(c, "Access denied")                // 403 Forbidden
+response.NotFound(c, "Resource not found")            // 404 Not Found
+response.Conflict(c, "Resource already exists")       // 409 Conflict
+response.ValidationError(c, "Validation failed")      // 422 Unprocessable Entity
 ```
 
 ### 🎯 Controller Implementation Example
 
 ```go
+package controllers
+
+import (
+    "github.com/gin-gonic/gin"
+    "your-project/core/response"
+    "your-project/core/models"
+)
+
+type AuthController struct {
+    // dependencies
+}
+
 func (a *AuthController) Me(c *gin.Context) {
+    // Get authenticated user from middleware
     user, exists := c.Get("user")
     if !exists {
-        response.Unauthorized(c, "Unauthenticated")
+        response.Unauthorized(c, "User not authenticated")
         return
     }
 
+    // Type assertion
     u, ok := user.(models.User)
     if !ok {
-        response.NotFound(c, "User not found")
+        response.Error(c, 500, "Invalid user data")
         return
     }
 
-    data := gin.H{
-        "id":    u.ID,
-        "name":  u.Name,
-        "email": u.Email,
-        "roles": u.Roles,
+    // Prepare response data
+    userData := gin.H{
+        "id":         u.ID,
+        "name":       u.Name,
+        "email":      u.Email,
+        "roles":      u.Roles,
+        "created_at": u.CreatedAt,
+        "updated_at": u.UpdatedAt,
     }
 
-    response.Success(c, "User fetched successfully!", data)
+    response.Success(c, "User profile retrieved successfully", userData)
 }
 ```
 
 ## 🌐 External API Integration
 
-### 1. Router Configuration (main.go)
+### 1. Define Route (v1/routes/api.go)
 ```go
-router.GET("/external/users/:id", apiHandler.GetExternalUser)
-```
-
-### 2. Handler Implementation (api_handler.go)
-```go
-func (h *APIHandler) GetExternalUser(c *gin.Context) {
-    // Extract parameters
-    userID := c.Param("id")
-    authToken := c.GetHeader("Authorization")
-
-    // Call service
-    user, err := h.userService.GetUserFromExternalAPI(userID, authToken)
-    if err != nil {
-        response.Error(c, 500, err.Error())
-        return
+func SetupRoutes(router *gin.Engine) {
+    v1 := router.Group("/api/v1")
+    {
+        // External API routes
+        external := v1.Group("/external")
+        {
+            external.GET("/users/:id", apiHandler.GetExternalUser)
+            external.POST("/users", apiHandler.CreateExternalUser)
+        }
     }
-
-    // Return standardized response
-    response.Success(c, "User fetched successfully", user)
 }
 ```
 
-### 3. Service Implementation (user_service.go)
+### 2. Handler Implementation (core/handlers/api_handler.go)
 ```go
-func (s *UserService) GetUserFromExternalAPI(userID string, token string) (*User, error) {
-    // Prepare request
-    url := fmt.Sprintf("%s/users/%s", s.config.ExternalAPIURL, userID)
-    
-    apiReq := &models.APIRequest{
-        Method:  "GET",
-        URL:     url,
-        Headers: map[string]string{"Authorization": token},
+func (h *APIHandler) GetExternalUser(c *gin.Context) {
+    userID := c.Param("id")
+    if userID == "" {
+        response.BadRequest(c, "User ID is required")
+        return
     }
 
-    // Execute request
-    res := s.apiClient.ExecuteRequest(apiReq)
-    if !res.Success {
-        return nil, fmt.Errorf("external API error: %s", res.Error)
+    // Get authorization header
+    authToken := c.GetHeader("Authorization")
+    
+    // Call external service
+    user, err := h.userService.GetUserFromExternalAPI(userID, authToken)
+    if err != nil {
+        response.Error(c, 500, fmt.Sprintf("Failed to fetch user: %s", err.Error()))
+        return
+    }
+
+    response.Success(c, "User retrieved successfully from external API", user)
+}
+```
+
+### 3. Service Implementation (core/services/user_service.go)
+```go
+func (s *UserService) GetUserFromExternalAPI(userID string, token string) (*models.ExternalUser, error) {
+    // Prepare API request
+    url := fmt.Sprintf("%s/users/%s", s.config.ExternalAPIURL, userID)
+    
+    apiRequest := &models.APIRequest{
+        Method: "GET",
+        URL:    url,
+        Headers: map[string]string{
+            "Authorization": token,
+            "Content-Type":  "application/json",
+        },
+        Timeout: time.Second * 30,
+    }
+
+    // Execute request using API client
+    response := s.apiClient.ExecuteRequest(apiRequest)
+    if !response.Success {
+        return nil, fmt.Errorf("external API error: %s", response.Error)
     }
 
     // Parse response
-    var user User
-    if err := mapstructure.Decode(res.Data, &user); err != nil {
-        return nil, err
+    var user models.ExternalUser
+    if err := mapstructure.Decode(response.Data, &user); err != nil {
+        return nil, fmt.Errorf("failed to parse response: %v", err)
     }
 
     return &user, nil
 }
 ```
 
-### 4. API Call Example
-```http
-GET /api/v1/external/users/123
-Authorization: Bearer your_token_here
-```
-
 ## 🔄 API Versioning
 
-The template supports API versioning through environment configuration:
+The template supports easy API versioning:
 
+### Environment Configuration
 ```env
-API_VERSION=v1  # Change to v2, v3, etc.
+API_VERSION=v1  # Routes to v1/ directory
+# Change to v2, v3, etc. for different versions
 ```
 
-This automatically routes requests to the appropriate version directory (`v1/`, `v2/`, etc.).
+### Version Structure
+- `v1/` - Current stable version
+- `v2/` - Future version (ready for implementation)
+- Each version has its own controllers, routes, and models
 
-## 🗄️ Database Migrations (using Makefile)
-
-### Available Commands
+### Accessing Different Versions
 ```bash
-# Run migrations
+# Version 1
+curl http://localhost:5220/api/v1/users
+
+# Version 2 (when implemented)
+curl http://localhost:5220/api/v2/users
+```
+
+## 🗄️ Database Management
+
+### Migration Commands (using Makefile)
+
+```bash
+# Create new migration
+make migrate-create name=create_products_table
+
+# Run all pending migrations
 make migrate-up
 
-# Rollback migrations
+# Rollback last migration
 make migrate-down
 
-# Create new migration
-make migrate-create name=create_new_table
+# Rollback specific number of migrations
+make migrate-down-to version=20250614000100
 
-# Check migration status
+# Check current migration status
 make migrate-status
+
+# Force migration version (use with caution)
+make migrate-force version=20250614000101
 ```
 
-### Migration Files Structure
+### Migration File Example
+```sql
+-- 20250614000100_create_products_table.up.sql
+CREATE TABLE products (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_products_name ON products(name);
 ```
-v1/database/migrations/
-├── 20250614000100_create_users_table.up.sql
-├── 20250614000100_create_users_table.down.sql
-├── 20250614000101_create_personal_access_tokens_table.up.sql
-└── 20250614000101_create_personal_access_tokens_table.down.sql
+
+```sql
+-- 20250614000100_create_products_table.down.sql
+DROP INDEX idx_products_name ON products;
+DROP TABLE products;
 ```
 
 ## 🔐 Authentication & Authorization
 
-### JWT Token Authentication
-- Login endpoint generates JWT tokens
-- Middleware validates tokens on protected routes
-- User information is injected into request context
+### JWT Authentication Flow
 
-### Role-Based Access Control
-- Users can have multiple roles
-- Roles contain specific permissions
-- Middleware checks permissions before allowing access
+1. **Login**: User provides credentials, receives JWT token
+2. **Authorization**: Include token in `Authorization: Bearer <token>` header
+3. **Middleware**: Validates token and injects user data into context
+4. **Access Control**: Check user roles/permissions for protected routes
 
-## 🚦 Middleware
+### Example Authentication Usage
 
-### Available Middleware
-- **Authentication Middleware**: Validates JWT tokens
-- **API Middleware**: Handles external API requests
-- **CORS Middleware**: Configures cross-origin requests
-- **Logging Middleware**: Logs request/response details
+```go
+// Protected route example
+func (h *UserController) GetProfile(c *gin.Context) {
+    // User data is automatically available from auth middleware
+    user := c.MustGet("user").(models.User)
+    
+    response.Success(c, "Profile retrieved", gin.H{
+        "user": user,
+    })
+}
+```
 
-## 📊 Logging
+### Role-Based Access Control (RBAC)
 
-Configurable logging with multiple levels:
+```go
+// Middleware usage in routes
+authorized := v1.Group("/")
+authorized.Use(middleware.AuthMiddleware())
+{
+    // Requires authentication only
+    authorized.GET("/profile", userController.GetProfile)
+    
+    // Requires specific permission
+    authorized.Use(middleware.RequirePermission("users.manage"))
+    authorized.GET("/admin/users", userController.ListAllUsers)
+}
+```
+
+## 🚦 Available Middleware
+
+### Built-in Middleware
+- **AuthMiddleware**: JWT token validation
+- **APIMiddleware**: External API request handling
+- **CORS**: Cross-origin resource sharing
+- **Logger**: Request/response logging
+- **RateLimit**: API rate limiting (customizable)
+- **Recovery**: Panic recovery with logging
+
+### Custom Middleware Example
+```go
+func CustomMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // Pre-processing
+        start := time.Now()
+        
+        // Process request
+        c.Next()
+        
+        // Post-processing
+        duration := time.Since(start)
+        log.Printf("Request processed in %v", duration)
+    }
+}
+```
+
+## 📊 Logging Configuration
+
+### Log Levels
 - `debug`: Detailed debugging information
-- `info`: General information
+- `info`: General application information
 - `warn`: Warning messages
-- `error`: Error messages
-- `fatal`: Fatal errors that cause program termination
+- `error`: Error conditions
+- `fatal`: Fatal errors causing program termination
 - `panic`: Panic-level errors
+
+### Environment Configuration
+```env
+ENABLE_LOGGING=true
+LOG_LEVEL=debug
+LOG_FORMAT=json  # or "text"
+LOG_OUTPUT=file  # or "console" or "both"
+```
+
+### Usage in Code
+```go
+import "your-project/core/services"
+
+logger := services.GetLogger()
+
+logger.Debug("Debug message")
+logger.Info("Info message")
+logger.Warn("Warning message")
+logger.Error("Error occurred", "error", err)
+```
+
+## 🧪 Development Commands
+
+### Makefile Commands
+```bash
+# Development
+make run          # Start development server
+make build        # Build production binary
+make test         # Run all tests
+make test-cover   # Run tests with coverage
+make lint         # Run linter
+
+# Database
+make migrate-up   # Run migrations
+make migrate-down # Rollback migrations
+make db-seed      # Seed database
+
+# Docker (if implemented)
+make docker-build # Build Docker image
+make docker-run   # Run in Docker container
+```
+
+### Testing
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with coverage
+go test -cover ./...
+
+# Run specific test
+go test ./v1/controllers -v
+```
+
+## 🐳 Docker Support (Optional)
+
+### Dockerfile Example
+```dockerfile
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN go build -o main .
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+
+COPY --from=builder /app/main .
+COPY --from=builder /app/.env .
+
+EXPOSE 5220
+CMD ["./main"]
+```
+
+### Docker Compose
+```yaml
+version: '3.8'
+services:
+  api:
+    build: .
+    ports:
+      - "5220:5220"
+    environment:
+      - DB_HOST=mysql
+    depends_on:
+      - mysql
+      
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: your_database
+    ports:
+      - "3306:3306"
+```
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 Changelog
+
+### v0.1.2
+- Initial release with CLI tool
+- JWT authentication system
+- RBAC implementation
+- External API integration
+- Database migration system
+- Comprehensive logging
+- Standardized response structure
+
+## 🚀 Roadmap
+
+- [ ] GraphQL support
+- [ ] WebSocket integration
+- [ ] Redis caching layer
+- [ ] Swagger/OpenAPI documentation
+- [ ] Health check endpoints
+- [ ] Metrics and monitoring
+- [ ] Docker containerization
+- [ ] Kubernetes deployment configs
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Gin](https://github.com/gin-gonic/gin) web framework
+- Database migrations by [golang-migrate](https://github.com/golang-migrate/migrate)
+- JWT implementation using [golang-jwt](https://github.com/golang-jwt/jwt)
 
 ---
 
+## 📞 Support
+
+If you encounter any issues or have questions:
+
+1. Check the [Issues](https://github.com/Palguna1121/go-starter/issues) page
+2. Create a new issue with detailed information
+3. Join our community discussions
+
 **Happy coding! 🎉**
 
-For issues and questions, please create an issue in the repository.
+Made with ❤️ for the Go community.

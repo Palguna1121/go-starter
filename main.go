@@ -1,18 +1,21 @@
 package main
 
 import (
-	"embed"
 	"fmt"
-	"io/fs"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/mholt/archiver/v3"
 	"github.com/spf13/cobra"
 )
 
-//go:embed template/*
-var templateFS embed.FS
+const (
+	templateRepo = "https://raw.githubusercontent.com/Palguna1121/go-starter/main/template.zip"
+)
 
 func main() {
 	Execute()
@@ -21,7 +24,7 @@ func main() {
 var rootCmd = &cobra.Command{
 	Use:   "go-starter",
 	Short: "Go Starter CLI",
-	Long:  "A CLI to scaffold new Go projects from a template.",
+	Long:  "A CLI to scaffold new Go projects from GitHub template.",
 }
 
 var newCmd = &cobra.Command{
@@ -29,50 +32,167 @@ var newCmd = &cobra.Command{
 	Short: "Create a new Go project",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		startTime := time.Now()
 		projectName := args[0]
-		fmt.Println("Welcome to Go Starter!")
-		fmt.Printf("Creating new project '%s'...\n", projectName)
 
-		// Verifikasi template ada
-		if _, err := templateFS.ReadDir("template"); err != nil {
-			fmt.Println("❌ Error: Failed to read template files")
-			fmt.Println("Make sure the 'template' folder exists and contains files")
-			fmt.Println("Original error:", err)
+		fmt.Println("🚀 Welcome to Go Starter!")
+		fmt.Printf("🛠  Creating project: %s\n\n", projectName)
+
+		// Validate and create project directory first
+		if err := os.Mkdir(projectName, 0755); err != nil {
+			fmt.Printf("❌ Failed to create project directory: %v\n", err)
 			os.Exit(1)
 		}
 
-		err := fs.WalkDir(templateFS, "template", func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return fmt.Errorf("access error: %w", err)
-			}
-
-			relPath := strings.TrimPrefix(path, "template/")
-			targetPath := filepath.Join(projectName, relPath)
-
-			if d.IsDir() {
-				return os.MkdirAll(targetPath, 0755)
-			}
-
-			data, err := templateFS.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("read error: %w", err)
-			}
-
-			content := string(data)
-			content = strings.ReplaceAll(content, "response-std", projectName)
-
-			return os.WriteFile(targetPath, []byte(content), 0644)
-		})
-
+		// Step 1: Download template
+		fmt.Println("🔽 Downloading template...")
+		err := downloadTemplate()
 		if err != nil {
-			fmt.Printf("❌ Error creating project: %v\n", err)
+			fmt.Printf("❌ Download failed: %v\n", err)
 			os.Exit(1)
 		}
+		fmt.Println("✅ Template downloaded")
 
-		fmt.Println("✅ Project created successfully!")
-		fmt.Println("Thank you for using Go Starter!")
-		fmt.Println("Happy coding!!! 🚀")
+		// Step 2: Extract template
+		fmt.Println("\n📦 Extracting template...")
+		extractedDir, err := extractTemplate()
+		if err != nil {
+			fmt.Printf("❌ Extraction failed: %v\n", err)
+			os.Exit(1)
+		}
+		defer os.RemoveAll(extractedDir)
+
+		// Find template directory
+		templateBaseDir := findTemplateDir(extractedDir)
+		if templateBaseDir == "" {
+			fmt.Println("❌ Template folder not found in the extracted files")
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Template found at: %s\n", templateBaseDir)
+
+		// Step 3: Process template files
+		fmt.Println("\n🔄 Processing files...")
+		err = processFiles(templateBaseDir, projectName)
+		if err != nil {
+			fmt.Printf("❌ Processing failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("✅ Files processed")
+
+		// Step 4: Clean up
+		fmt.Println("\n🧹 Cleaning up...")
+		os.Remove("template.zip")
+
+		// Final output
+		fmt.Printf("\n🎉 Project created successfully in %.2f seconds!\n", time.Since(startTime).Seconds())
+		fmt.Println("👉 Next steps:")
+		fmt.Printf("   cd %s\n", projectName)
+		fmt.Println("   go mod tidy")
+		fmt.Println("\nHappy coding! 💻")
 	},
+}
+
+func downloadTemplate() error {
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Get(templateRepo)
+	if err != nil {
+		return fmt.Errorf("failed to download: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned: %s", resp.Status)
+	}
+
+	out, err := os.Create("template.zip")
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to save template: %w", err)
+	}
+
+	return nil
+}
+
+func extractTemplate() (string, error) {
+	tempDir, err := os.MkdirTemp("", "go-starter-")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp dir: %w", err)
+	}
+
+	err = archiver.Unarchive("template.zip", tempDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to unzip: %w", err)
+	}
+
+	return tempDir, nil
+}
+
+func findTemplateDir(baseDir string) string {
+	// Cari folder template di beberapa lokasi yang mungkin
+	possiblePaths := []string{
+		filepath.Join(baseDir, "go-starter-main", "template"),
+		filepath.Join(baseDir, "template"),
+	}
+
+	for _, path := range possiblePaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return ""
+}
+
+func processFiles(sourceDir, projectName string) error {
+	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+
+		targetPath := filepath.Join(projectName, relPath)
+
+		// Skip root directory
+		if path == sourceDir {
+			return nil
+		}
+
+		// Create parent directory first if needed
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", targetPath, err)
+		}
+
+		// Skip directories (already created by MkdirAll)
+		if info.IsDir() {
+			fmt.Printf("📁 %s\n", relPath)
+			return nil
+		}
+
+		// Process files
+		fmt.Printf("📝 %s\n", relPath)
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", path, err)
+		}
+
+		// Process text files
+		newContent := strings.ReplaceAll(string(content), "response-std", projectName)
+
+		return os.WriteFile(targetPath, []byte(newContent), 0644)
+	})
 }
 
 func Execute() {

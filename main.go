@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -79,15 +80,36 @@ var newCmd = &cobra.Command{
 		}
 		fmt.Println("✅ Files processed")
 
-		// Step 4: Clean up
+		// Step 4: Initialize go module
+		fmt.Println("\n📦 Initializing Go module...")
+		cmdInit := exec.Command("go", "mod", "init", projectName)
+		cmdInit.Dir = projectName
+		cmdInit.Stdout = os.Stdout
+		cmdInit.Stderr = os.Stderr
+		if err := cmdInit.Run(); err != nil {
+			fmt.Printf("❌ Failed to initialize go module: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("✅ Go module initialized")
+
+		// Step 5: Clean up
 		fmt.Println("\n🧹 Cleaning up...")
 		os.Remove("template.zip")
 
 		// Final output
 		fmt.Printf("\n🎉 Project created successfully in %.2f seconds!\n", time.Since(startTime).Seconds())
-		fmt.Println("👉 Next steps:")
-		fmt.Printf("   cd %s\n", projectName)
-		fmt.Println("   go mod tidy")
+		fmt.Println("🚀 You're ready to go!")
+
+		fmt.Println("\n👉 Next steps:")
+		fmt.Printf("   1. Change into the project directory:\n      cd %s\n", projectName)
+		fmt.Println("   2. Install dependencies and set up environment:")
+		fmt.Println("      go mod tidy")
+		fmt.Println("      cp .env.example .env")
+		fmt.Println("   3. Run the app easily with Makefile:")
+		fmt.Println("      make install   # this command will do `go mod tidy` and `cp .env.example .env`")
+		fmt.Println("      make run       # this command will Starts the application")
+
+		fmt.Println("\n💡 Tip: You can edit .env for your local config.")
 		fmt.Println("\nHappy coding! 💻")
 	},
 }

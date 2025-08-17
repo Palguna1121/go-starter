@@ -10,6 +10,8 @@ import (
 	"response-std/app/models/entities"
 	"response-std/app/pkg/permissions"
 	"response-std/app/pkg/response"
+	clientservice "response-std/app/services"
+	"response-std/config"
 	"response-std/libs/external/services"
 )
 
@@ -41,7 +43,15 @@ func (ctl *UserController) ListUser(c *gin.Context) {
 		}
 	}
 
-	response.Success(c, "List of users retrieved successfully", data)
+	apiService := clientservice.NewAPIDataService(config.ENV)
+	api_data := apiService.GetUserData()
+
+	extendedData := &gin.H{
+		"users":    data,
+		"external": api_data,
+	}
+
+	response.Success(c, "List of users retrieved successfully", extendedData)
 }
 
 func (ctl *UserController) GetUserByID(c *gin.Context) {
@@ -94,14 +104,13 @@ func (ctl *UserController) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Check and assign "pelanggan" role
-	roleName := "pelanggan"
+	roleName := "user"
 	_, err = ctl.Permission.FindRoleByName(roleName)
 	if err != nil {
 		// Role not found, create it
 		_, err = ctl.Permission.CreateRole(roleName, "web")
 		if err != nil {
-			response.InternalServerError(c, "Failed to create role pelanggan", err, "[CreateUser]")
+			response.InternalServerError(c, "Failed to create role for user", err, "[CreateUser]")
 			return
 		}
 	}
